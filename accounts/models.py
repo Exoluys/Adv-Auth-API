@@ -39,3 +39,18 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
+
+
+class LoginHistory(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_history')
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    login_time = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-login_time']
+        verbose_name_plural = 'Login Histories'
+
+    def __str__(self):
+        return f"{self.user.email} - {self.login_time}"
