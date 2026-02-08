@@ -45,7 +45,8 @@ class LoginSerializer(serializers.Serializer):
             refresh = RefreshToken.for_user(user)
             return {
                 'email': user.email,
-                'refresh': str(refresh.access_token)
+                'refresh': str(refresh),
+                'access': str(refresh.access_token)
             }
         except User.DoesNotExist:
             raise serializers.ValidationError("User doesn't exist")
