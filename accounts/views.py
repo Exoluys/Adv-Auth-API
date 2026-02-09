@@ -1,10 +1,13 @@
+from django.conf import settings
+from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User, LoginHistory
-from accounts.serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from accounts.models import User, LoginHistory, PasswordResetToken
+from accounts.serializers import LoginSerializer, RegisterSerializer, UserSerializer, PasswordResetRequestSerializer, \
+    PasswordResetConfirmationSerializer
 
 
 def get_client_ip(req):
@@ -91,3 +94,76 @@ class LoginHistoryView(APIView):
         ]
 
         return Response(history_data, status=status.HTTP_200_OK)
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, req):
+        serializer = PasswordResetRequestSerializer(data=req.data)
+
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+
+            try:
+                user = User.objects.get(email=email)
+                reset_token = PasswordResetToken.objects.create(user=user)
+                reset_link = f"http://localhost:3000/reset-password?token={reset_token.token}"
+
+                send_mail(
+                    subject='Password Reset Request',
+                    message=f'Click the link to reset your password: {reset_link}\n\nThis link expires in 1 hour.',
+                    from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings,
+                                                                      'DEFAULT_FROM_EMAIL') else 'noreply@example.com',
+                    recipient_list=[email],
+                )
+
+            except User.DoesNotExist:
+                pass
+
+            return Response(
+                {'message': 'If your email exists, you will receive a password reset link.'},
+                status=status.HTTP_200_OK
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetConfirmationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, req):
+        serializer = PasswordResetConfirmationSerializer(data=req.data)
+
+        if serializer.is_valid():
+            token = serializer.validated_data['token']
+            password = serializer.validated_data['password']
+
+            try:
+                reset_token = PasswordResetToken.objects.get(token=token)
+
+                if not reset_token.is_valid():
+                    return Response(
+                        {'error': 'Token has expired or already been used'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                user = reset_token.user
+                user.set_password(password)
+                user.save()
+
+                reset_token.used = True
+                reset_token.save()
+
+                return Response(
+                    {'message': 'Password has been reset successfully'},
+                    status=status.HTTP_200_OK
+                )
+
+            except PasswordResetToken.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid token'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,3 +1,6 @@
+import uuid
+from datetime import timedelta
+from django.utils import timezone
 from django.db import models
 from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
@@ -54,3 +57,17 @@ class LoginHistory(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.login_time}"
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.UUIDField(default=uuid.uuid4, editable=True, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        expiry_time = self.created_at + timedelta(hours=1)
+        return not self.used and timezone.now() < expiry_time
+
+    def __str__(self):
+        return f"Reset token for {self.user.email}"

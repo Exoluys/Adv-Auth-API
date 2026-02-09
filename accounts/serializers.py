@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-
 from .models import User
 
 
@@ -50,3 +49,25 @@ class LoginSerializer(serializers.Serializer):
             }
         except User.DoesNotExist:
             raise serializers.ValidationError("User doesn't exist")
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        try:
+            User.objects.get(email=value)
+        except User.DoesNotExist:
+            pass
+        return value
+
+
+class PasswordResetConfirmationSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    password2 = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['password'] != data['password2']:
+            raise serializers.ValidationError("Password don't match")
+        return data
